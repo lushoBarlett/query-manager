@@ -1,0 +1,25 @@
+{
+	"name" : "lushobarlett/query-manager",
+	"description" : "manager for mysql queries to improve database code flexibility, security and automation of simpler database use cases",
+	"keywords" : ["query", "database"],
+	"require" : {
+		"php" : "^7",
+		"lushobarlett/cologger" : "^2"
+	},
+	"require-dev" : {
+		"phpunit/phpunit" : "^9"
+	},
+	"license" : "MIT",
+	"authors" : [
+		{
+			"name" : "Luciano Barletta",
+			"email" : "lushobarlett@gmail.com",
+			"role" : "Developer"
+		}
+	],
+	"autoload" : {
+		"psr-4" : {
+			"QueryManager\\" : "src/"
+		}
+	}
+}
