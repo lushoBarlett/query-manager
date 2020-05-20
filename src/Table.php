@@ -4,13 +4,13 @@ namespace QueryManager;
 
 class Table {
 	
-	private $this->database;
-	private $this->tablename;
-	private $this->selectf;
-	private $this->insertf;
-	private $this->updatef;
+	private $database;
+	private $tablename;
+	private $selectf;
+	private $insertf;
+	private $updatef;
 	
-	public function __construct(
+	protected function __construct(
 		string $database,
 		string $tablename,
 		array $select,
@@ -24,36 +24,28 @@ class Table {
 		$this->updatef = $updatef;
 	}
 
-	protected function select(Connection $connection, QueryPiece $extra = null) {
-		return $connection->execute(
-			QueryPiece::merge(
-				new QueryPiece("SELECT {$this->select} FROM {$this->fullname}"),
-				$this->default_qp($extra)
-			)
-		);
+	public function select(Connection $connection, QueryPiece $extra = null) {
+		$s = new QueryPiece("SELECT {$this->select} FROM {$this->fullname()}");
+		return $connection->execute($extra ? QueryPiece::merge($s, $extra) : $s);
 	}
 
-	protected function insert(Connection $connection, $data, QueryPiece $extra = null) {
+	public function insert(Connection $connection, $data, QueryPiece $extra = null) {
 		function qmarks(int $n) {
-			return implode(',', str_repeat('?',$n));
+			return rtrim(',', str_repeat('?,',$n));
 		}
 
-		return $connection->execute(
-			QueryPiece::merge(
-				new QueryPiece(
-					"INSERT INTO {$this->fullname} (" .
-					implode(',', $this->insertf->keys) .
-					") VALUES (" .
-					qmarks(count($this->insertf->keys)) .
-					")",
-					$this->insertf->as_array($data)
-				),
-				$this->default_qp($extra)
-			)
+		$i = new QueryPiece(
+			"INSERT INTO {$this->fullname()} (" .
+			implode(',', $this->insertf->keys) .
+			") VALUES (" .
+			qmarks(count($this->insertf->keys)) .
+			")",
+			$this->insertf->as_array($data)
 		);
+		return $connection->execute($extra ? QueryPiece::merge($i, $extra) : $i);
 	}
 
-	protected function update(Connection $connection, $data, QueryPiece $extra = null) {
+	public function update(Connection $connection, $data, QueryPiece $extra = null) {
 		function set(array $keys) {
 			$s = [];
 			foreach ($keys as $key)
@@ -61,35 +53,21 @@ class Table {
 			return implode(',', $s);
 		}
 
-		return $connection->execute(
-			QueryPiece::merge(
-				new QueryPiece(
-					"UPDATE {$this->fullname} SET " .
-					set($this->updatef->keys),
-					$this->updatef->as_array($data)
-				),
-				$this->default_qp($extra)
-			)
+		$u = new QueryPiece(
+			"UPDATE {$this->fullname()} SET " .
+			set($this->updatef->keys),
+			$this->updatef->as_array($data)
 		);
+		return $connection->execute($extra ? QueryPiece::merge($u, $extra) : $u);
 	}
 
-	protected function delete(Connection $connection, QueryPiece $extra = null) {
-		return $connection->execute(
-			QueryPiece::merge(
-				new QueryPiece("DELETE FROM {$this->fullname}"),
-				$this->default_qp($extra)
-			)
-		);
+	public function delete(Connection $connection, QueryPiece $extra = null) {
+		$d = new QueryPiece("DELETE FROM {$this->fullname()}");
+		return $connection->execute($extra ? QueryPiece::merge($d, $extra) : $d);
 	}
 
-	private function fullname() : QueryPiece {
+	private function fullname() : string {
 		return "{$this->database}.{$this->tablename}";
-	}
-
-	private function default_qp($qp) {
-		if ($qp === null)
-			return new QueryPiece();
-		return $qp;
 	}
 }
 
