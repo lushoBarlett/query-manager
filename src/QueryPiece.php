@@ -16,7 +16,7 @@ class QueryPiece {
 		$qps = func_get_args();
 		return new QueryPiece(
 			implode(" ", array_map(function($qp) { return $qp->template; }, $qps)),
-			array_reduce(
+			...array_reduce(
 				array_map( function($qp) { return $qp->fragments; }, $qps ),
 				function ($last, $actual) { return array_merge($last, $actual); },
 				[]

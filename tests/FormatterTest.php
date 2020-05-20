@@ -18,27 +18,28 @@ class FormatterTest extends TestCase {
 	
 	public function testFormatWithSomeDefaults() {
 		$f = new Formatter("first", "second", "third", "fourth");
-		$f->add_default("fourth", 0);
+		$f->add_default("first", 0);
 		$data = [
-			"first" => 0,
+			"fourth" => 0,
 			"second" => 1,
 			"trash" => 2
 		];
 
+		// due to implementation, defaults go first
 		$this->assertEquals(
-			["first" => 0, "second" => 1, "fourth" => 0],
+			["first" => 0, "fourth" => 0, "second" => 1],
 			$f->as_array($data)
 		);
 		$this->assertEquals(
-			(object)["first" => 0, "second" => 1, "fourth" => 0],
+			(object)["first" => 0, "fourth" => 0, "second" => 1],
 			$f->as_object($data)
 		);
 		$this->assertEquals(
-			["first" => 0, "second" => 1, "fourth" => 0],
+			["first" => 0, "fourth" => 0, "second" => 1],
 			$f->as_array((object)$data)
 		);
 		$this->assertEquals(
-			(object)["first" => 0, "second" => 1, "fourth" => 0],
+			(object)["first" => 0, "fourth" => 0, "second" => 1],
 			$f->as_object((object)$data)
 		);
 	}

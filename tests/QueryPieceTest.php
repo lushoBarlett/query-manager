@@ -14,7 +14,7 @@ class QueryPieceTest extends TestCase {
 	
 	public function testMerge() {
 		$this->assertEquals(
-			new QueryPiece("this is the full text", ["these","are","the","fragments"]),
+			new QueryPiece("this is the full text", "these", "are", "the", "fragments"),
 			QueryPiece::merge(
 				new QueryPiece("this is", "these"),
 				new QueryPiece("the full", "are"),

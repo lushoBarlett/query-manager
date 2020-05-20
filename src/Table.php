@@ -13,50 +13,52 @@ class Table {
 	protected function __construct(
 		string $database,
 		string $tablename,
-		array $select,
+		Formatter $selectf,
 		Formatter $insertf,
 		Formatter $updatef
 	) {
 		$this->database = $database;
 		$this->tablename = $tablename;
-		$this->select = implode(',',$select);
+		$this->selectf = implode(',', $selectf->keys);
 		$this->insertf = $insertf;
 		$this->updatef = $updatef;
 	}
 
 	public function select(Connection $connection, QueryPiece $extra = null) {
-		$s = new QueryPiece("SELECT {$this->select} FROM {$this->fullname()}");
+		$s = new QueryPiece("SELECT {$this->selectf} FROM {$this->fullname()}");
 		return $connection->execute($extra ? QueryPiece::merge($s, $extra) : $s);
 	}
 
 	public function insert(Connection $connection, $data, QueryPiece $extra = null) {
 		function qmarks(int $n) {
-			return rtrim(',', str_repeat('?,',$n));
+			return rtrim(str_repeat('?,',$n), ',');
 		}
 
+		$formatted = $this->insertf->as_array($data);
 		$i = new QueryPiece(
 			"INSERT INTO {$this->fullname()} (" .
-			implode(',', $this->insertf->keys) .
+			implode(',', array_keys($formatted)) .
 			") VALUES (" .
-			qmarks(count($this->insertf->keys)) .
+			qmarks(count($formatted)) .
 			")",
-			$this->insertf->as_array($data)
+			...array_values($formatted)
 		);
 		return $connection->execute($extra ? QueryPiece::merge($i, $extra) : $i);
 	}
 
 	public function update(Connection $connection, $data, QueryPiece $extra = null) {
-		function set(array $keys) {
+		function set(array $formatted) {
 			$s = [];
-			foreach ($keys as $key)
+			foreach ($formatted as $key => $value)
 				$s[] = "{$key} = ?";
 			return implode(',', $s);
 		}
 
+		$formatted = $this->updatef->as_array($data);
 		$u = new QueryPiece(
 			"UPDATE {$this->fullname()} SET " .
-			set($this->updatef->keys),
-			$this->updatef->as_array($data)
+			set($formatted),
+			...array_values($formatted)
 		);
 		return $connection->execute($extra ? QueryPiece::merge($u, $extra) : $u);
 	}
