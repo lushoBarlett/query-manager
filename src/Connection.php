@@ -7,7 +7,7 @@ class Connection {
 	private $db;
 
 	public function __construct($server, $user, $password, $database = "") {
-		$this->db = new mysqli($server, $user, $password, $database);
+		$this->db = new \mysqli($server, $user, $password, $database);
 
 		if ($this->db->connect_errno)
 			throw \Exception($this->db->connect_error);
@@ -15,14 +15,14 @@ class Connection {
 		$this->transaction();
 	}
 	
-	private function prepare(string $query) : mysqli_stmt {
+	private function prepare(string $query) : \mysqli_stmt {
 		if($statement = $this->db->prepare($query))
 			return $statement;
 		else
 			throw new \Exception($this->db->error);
 	}
 
-	public function execute(QueryPiece $qp) : mysqli_result {
+	public function execute(QueryPiece $qp) : \mysqli_result {
 		$statement = $this->prepare($qp->template);
 
 		// bind N strings, mysql can cast the values if necessary
