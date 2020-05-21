@@ -4,6 +4,8 @@ namespace QueryManager;
 
 class Connection {
 
+	private $db;
+
 	public function __construct($server, $user, $password, $database = "") {
 		$this->db = new mysqli($server, $user, $password, $database);
 
