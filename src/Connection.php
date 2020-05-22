@@ -56,7 +56,6 @@ class Connection {
 	}
 
 	public function __destruct() {
-		$this->commit();
 		$this->db->close();
 	}
 }
