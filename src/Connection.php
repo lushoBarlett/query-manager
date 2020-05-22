@@ -22,7 +22,7 @@ class Connection {
 			throw new \Exception($this->db->error);
 	}
 
-	public function execute(QueryPiece $qp) : \mysqli_result {
+	public function execute(QueryPiece $qp) {
 		$statement = $this->prepare($qp->template);
 
 		// bind N strings, mysql can cast the values if necessary
