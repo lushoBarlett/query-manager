@@ -20,13 +20,13 @@ class Formatter {
 
 		if (is_array($data)) {
 			foreach($this->keys as $key)
-				if (isset($data[$key]))
+				if (array_key_exists($key, $data))
 					$formatted[$key] = $data[$key];
 		}
 				
 		else if (is_object($data)) {
 			foreach($this->keys as $key)
-				if (isset($data->{$key}))
+				if (property_exists($key, $data))
 					$formatted[$key] = $data->{$key};
 		}
 				

@@ -26,7 +26,11 @@ class Connection {
 		$statement = $this->prepare($qp->template);
 
 		// bind N strings, mysql can cast the values if necessary
-		$params = array_map(function($v) { return (string)$v; }, $qp->fragments);
+		// don't cast null
+		$params = array_map(
+			function($v) { return $v === null ? $v : (string)$v; },
+			$qp->fragments
+		);
 		
 		if (count($params) > 0)
 			$statement->bind_param(
