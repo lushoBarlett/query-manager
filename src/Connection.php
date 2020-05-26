@@ -44,17 +44,17 @@ class Connection {
 			throw new \Exception($statement->error);
 	}
 
-	public function transaction() {
+	public function transaction() : void {
 		if ($this->db->begin_transaction() === false)
 			throw new \Exception($this->db->error);
 	}
 
-	public function rollback() {
+	public function rollback() : void {
 		if ($this->db->rollback() === false)
 			throw new \Exception($this->db->error);
 	}
 
-	public function commit() {
+	public function commit() : void {
 		if ($this->db->commit() === false)
 			throw new \Exception($this->db->error);
 	}

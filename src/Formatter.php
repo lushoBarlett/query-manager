@@ -11,7 +11,7 @@ class Formatter {
 		$this->keys = func_get_args();
 	}
 
-	public function add_default(string $key, $default = null) {
+	public function add_default(string $key, $default = null) : void {
 		$this->defaults[$key] = $default;
 	}
 
@@ -26,7 +26,7 @@ class Formatter {
 				
 		else if (is_object($data)) {
 			foreach($this->keys as $key)
-				if (property_exists($key, $data))
+				if (property_exists($data, $key))
 					$formatted[$key] = $data->{$key};
 		}
 				
