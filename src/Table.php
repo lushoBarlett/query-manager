@@ -30,16 +30,16 @@ class Table {
 	}
 
 	public function insert(Connection $connection, $data, QueryPiece $extra = null) {
-		function qmarks(int $n) {
+		$qmarks = function(int $n) {
 			return rtrim(str_repeat('?,',$n), ',');
-		}
+		};
 
 		$formatted = $this->insertf->as_array($data);
 		$i = new QueryPiece(
 			"INSERT INTO {$this->fullname()} (" .
 			implode(',', array_keys($formatted)) .
 			") VALUES (" .
-			qmarks(count($formatted)) .
+			$qmarks(count($formatted)) .
 			")",
 			...array_values($formatted)
 		);
@@ -47,17 +47,17 @@ class Table {
 	}
 
 	public function update(Connection $connection, $data, QueryPiece $extra = null) {
-		function set(array $formatted) {
+		$set = function(array $formatted) {
 			$s = [];
 			foreach ($formatted as $key => $value)
 				$s[] = "{$key} = ?";
 			return implode(',', $s);
-		}
+		};
 
 		$formatted = $this->updatef->as_array($data);
 		$u = new QueryPiece(
 			"UPDATE {$this->fullname()} SET " .
-			set($formatted),
+			$set($formatted),
 			...array_values($formatted)
 		);
 		return $connection->execute($extra ? QueryPiece::merge($u, $extra) : $u);
