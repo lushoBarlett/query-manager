@@ -38,32 +38,31 @@ class Connection {
 				...$params
 			);
 
-		if($statement->execute()) {
-			$keys = [];
-			$m = $statement->result_metadata();
-			while($f = $m->fetch_field())
-				$keys[] = $f->name;
-			$m->close();
+		if($statement->execute())
+			if ($m = $statement->result_metadata()) {
+				$keys = [];
+				while($f = $m->fetch_field())
+					$keys[] = $f->name;
+				$m->close();
 
-			// fill array with null and bind it
-			$bindings = array_pad([], count($keys), null);
-			$statement->bind_result(...$bindings);
+				// fill array with null and bind it
+				$bindings = array_pad([], count($keys), null);
+				$statement->bind_result(...$bindings);
 
+				$dereference = function($v) { return $v; };
 
-			$dereference = function($v) { return $v; };
+				$result = [];
+				while($statement->fetch())
+					// deep copy of references
+					$result[] = (object)array_combine(
+						$keys, array_map($dereference, $bindings)
+					);
 
-			$result = [];
-			while($statement->fetch())
-				// deep copy of references
-				$result[] = (object)array_combine(
-					$keys, array_map($dereference, $bindings)
-				);
-
-			$statement->close();
-			return $result;
-		} else {
+				$statement->close();
+				return $result;
+			}
+		else
 			throw new \Exception($statement->error);
-		}
 	}
 
 	public function transaction() : void {
