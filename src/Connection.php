@@ -38,7 +38,7 @@ class Connection {
 				...$params
 			);
 
-		if($statement->execute())
+		if($statement->execute()) {
 			if ($m = $statement->result_metadata()) {
 				$keys = [];
 				while($f = $m->fetch_field())
@@ -61,8 +61,9 @@ class Connection {
 				$statement->close();
 				return $result;
 			}
-		else
+		} else {
 			throw new \Exception($statement->error);
+		}
 	}
 
 	public function transaction() : void {
