@@ -10,7 +10,7 @@ class Connection {
 		$this->db = new \mysqli($server, $user, $password, $database);
 
 		if ($this->db->connect_errno)
-			throw \Exception($this->db->connect_error);
+			throw new \Exception($this->db->connect_error);
 
 		$this->transaction();
 	}
@@ -38,10 +38,32 @@ class Connection {
 				...$params
 			);
 
-		if($statement->execute())
-			return $statement->get_result();
-		else
+		if($statement->execute()) {
+			$keys = [];
+			$m = $statement->result_metadata();
+			while($f = $m->fetch_field())
+				$keys[] = $f->name;
+			$m->close();
+
+			// fill array with null and bind it
+			$bindings = array_pad([], count($keys), null);
+			$statement->bind_result(...$bindings);
+
+
+			$dereference = function($v) { return $v; };
+
+			$result = [];
+			while($statement->fetch())
+				// deep copy of references
+				$result[] = (object)array_combine(
+					$keys, array_map($dereference, $bindings)
+				);
+
+			$statement->close();
+			return $result;
+		} else {
 			throw new \Exception($statement->error);
+		}
 	}
 
 	public function transaction() : void {
@@ -57,6 +79,14 @@ class Connection {
 	public function commit() : void {
 		if ($this->db->commit() === false)
 			throw new \Exception($this->db->error);
+	}
+
+	public function errors() : object {
+		return (object)[
+			"error" => $this->db->error,
+			"error_list" => $this->db->error_list,
+			"connect_error" => $this->db->connect_error
+		];
 	}
 
 	public function __destruct() {
