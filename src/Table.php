@@ -24,12 +24,12 @@ class Table {
 		$this->updatef = $updatef;
 	}
 
-	public function select(Connection $connection, QueryPiece $extra = null) {
+	public function select(IConnection $connection, QueryPiece $extra = null) {
 		$s = new QueryPiece("SELECT {$this->selectf} FROM {$this->fullname()}");
 		return $connection->execute($extra ? QueryPiece::merge($s, $extra) : $s);
 	}
 
-	public function insert(Connection $connection, $data, QueryPiece $extra = null) {
+	public function insert(IConnection $connection, $data, QueryPiece $extra = null) {
 		$qmarks = function(int $n) {
 			return rtrim(str_repeat('?,',$n), ',');
 		};
@@ -46,7 +46,7 @@ class Table {
 		return $connection->execute($extra ? QueryPiece::merge($i, $extra) : $i);
 	}
 
-	public function update(Connection $connection, $data, QueryPiece $extra = null) {
+	public function update(IConnection $connection, $data, QueryPiece $extra = null) {
 		$set = function(array $formatted) {
 			$s = [];
 			foreach ($formatted as $key => $value)
@@ -63,7 +63,7 @@ class Table {
 		return $connection->execute($extra ? QueryPiece::merge($u, $extra) : $u);
 	}
 
-	public function delete(Connection $connection, QueryPiece $extra = null) {
+	public function delete(IConnection $connection, QueryPiece $extra = null) {
 		$d = new QueryPiece("DELETE FROM {$this->fullname()}");
 		return $connection->execute($extra ? QueryPiece::merge($d, $extra) : $d);
 	}

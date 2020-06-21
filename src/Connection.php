@@ -2,12 +2,12 @@
 
 namespace QueryManager;
 
-class Connection {
+class Connection implements IConnection {
 
 	private $db;
 
-	public function __construct($server, $user, $password, $database = "") {
-		$this->db = new \mysqli($server, $user, $password, $database);
+	public function __construct(string $s, string $usr, string $psw, string $db = "") {
+		$this->db = new \mysqli($s, $usr, $psw, $db);
 
 		if ($this->db->connect_errno)
 			throw new \Exception($this->db->connect_error);
@@ -22,7 +22,7 @@ class Connection {
 			throw new \Exception($this->db->error);
 	}
 
-	public function execute(QueryPiece $qp) {
+	public function execute(QueryPiece $qp) : ?array {
 		$statement = $this->prepare($qp->template);
 
 		// bind N strings, mysql can cast the values if necessary

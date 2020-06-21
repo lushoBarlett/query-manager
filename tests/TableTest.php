@@ -4,12 +4,13 @@ namespace QueryManager;
 
 use PHPUnit\Framework\TestCase;
 
-// bit of a hack, prevent the load of the real Connection class
-class Connection {
-	public function execute(QueryPiece $qp) { return $qp; }
-	public function transaction() {}
-	public function rollback() {}
-	public function commit() {}
+class TestConnection implements IConnection {
+	public function __construct(string $s, string $usr, string $psw, string $db = "") {}
+	public function execute(QueryPiece $qp) : ?array { return [$qp]; }
+	public function transaction() : void {}
+	public function rollback() : void {}
+	public function commit() : void {}
+	public function errors() : object { return new stdClass; }
 }
 
 class Person extends Table {
@@ -25,54 +26,55 @@ class Person extends Table {
 		parent::__construct("mydb", "person", $select, $insert, $update);
 	}
 
-	public function non_standard_query(Connection $conn, $value) {
+	public function non_standard_query(IConnection $conn, $value) {
 		return $conn->execute(new QueryPiece("DO WEIRD STUFF ?", $value));
 	}
 }
 
 class TableTest extends TestCase {
 
+	private function conn() { return new TestConnection("","",""); }
+
 	public function testSelect() {
 		$table = new Person;
 		$this->assertEquals(
-			new QueryPiece("SELECT name,age,fav_food FROM mydb.person"),
-			$table->select(new Connection)
+			[new QueryPiece("SELECT name,age,fav_food FROM mydb.person")],
+			$table->select($this->conn())
 		);
 	}
 
 	public function testInsert() {
 		$table = new Person;
 		$this->assertEquals(
-			// because of implementation, defaults go first
-			new QueryPiece(
-				"INSERT INTO mydb.person (fav_food,name,age) VALUES (?,?,?)",
-				"banana", "gerald", 72
-			),
-			$table->insert(new Connection, ["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
+			[new QueryPiece(
+				"INSERT INTO mydb.person (name,age,fav_food) VALUES (?,?,?)",
+				"gerald", 72, "banana"
+			)],
+			$table->insert($this->conn(), ["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
 		);
 	}
 
 	public function testUpdate() {
 		$table = new Person;
 		$this->assertEquals(
-			new QueryPiece("UPDATE mydb.person SET age = ?", 72),
-			$table->update(new Connection, ["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
+			[new QueryPiece("UPDATE mydb.person SET age = ?", 72)],
+			$table->update($this->conn(), ["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
 		);
 	}
 
 	public function testDelete() {
 		$table = new Person;
 		$this->assertEquals(
-			new QueryPiece("DELETE FROM mydb.person"),
-			$table->delete(new Connection)
+			[new QueryPiece("DELETE FROM mydb.person")],
+			$table->delete($this->conn())
 		);
 	}
 
 	public function testNonStandardQuery() {
 		$table = new Person;
 		$this->assertEquals(
-			new QueryPiece("DO WEIRD STUFF ?", [-1]),
-			$table->non_standard_query(new Connection, [-1])
+			[new QueryPiece("DO WEIRD STUFF ?", [-1])],
+			$table->non_standard_query($this->conn(), [-1])
 		);
 	}
 }
