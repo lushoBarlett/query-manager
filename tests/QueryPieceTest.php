@@ -22,6 +22,14 @@ class QueryPieceTest extends TestCase {
 			)
 		);
 	}
+
+	public function testPrependThroughSelect() {
+		$qp = new QueryPiece("a,b,c FROM table WHERE a = ?", "argument");
+		$result = new QueryPiece("SELECT a,b,c FROM table WHERE a = ?", "argument");
+
+		$this->assertEquals($result, QueryPiece::Select($qp->template, ...$qp->fragments));
+		$this->assertEquals($result, QueryPiece::Select($qp));
+	}
 }
 
 ?>

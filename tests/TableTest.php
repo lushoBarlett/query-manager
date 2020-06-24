@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 class TestConnection implements IConnection {
 	public function __construct(string $s, string $usr, string $psw, string $db = "") {}
 	public function execute(QueryPiece $qp) : ?array { return [$qp]; }
+	public function last_insert_id() {}
 	public function transaction() : void {}
 	public function rollback() : void {}
 	public function commit() : void {}
