@@ -66,6 +66,10 @@ class Connection implements IConnection {
 		}
 	}
 
+	public function last_insert_id() {
+		return $this->db->insert_id;
+	}
+
 	public function transaction() : void {
 		if ($this->db->begin_transaction() === false)
 			throw new \Exception($this->db->error);
