@@ -38,32 +38,33 @@ class Connection implements IConnection {
 				...$params
 			);
 
-		if($statement->execute()) {
-			if ($m = $statement->result_metadata()) {
-				$keys = [];
-				while($f = $m->fetch_field())
-					$keys[] = $f->name;
-				$m->close();
-
-				// fill array with null and bind it
-				$bindings = array_pad([], count($keys), null);
-				$statement->bind_result(...$bindings);
-
-				$dereference = function($v) { return $v; };
-
-				$result = [];
-				while($statement->fetch())
-					// deep copy of references
-					$result[] = (object)array_combine(
-						$keys, array_map($dereference, $bindings)
-					);
-
-				$statement->close();
-				return $result;
-			}
-		} else {
+		if(!$statement->execute())
 			throw new \Exception($statement->error);
+
+		if ($m = $statement->result_metadata()) {
+			$keys = [];
+			while($f = $m->fetch_field())
+				$keys[] = $f->name;
+			$m->close();
+
+			// fill array with null and bind it
+			$bindings = array_pad([], count($keys), null);
+			$statement->bind_result(...$bindings);
+
+			$dereference = function($v) { return $v; };
+
+			$result = [];
+			while($statement->fetch())
+				// deep copy of references
+				$result[] = (object)array_combine(
+					$keys, array_map($dereference, $bindings)
+				);
+
+			$statement->close();
+			return $result;
 		}
+
+		return null;
 	}
 
 	public function last_insert_id() {
@@ -71,17 +72,17 @@ class Connection implements IConnection {
 	}
 
 	public function transaction() : void {
-		if ($this->db->begin_transaction() === false)
+		if (!$this->db->begin_transaction())
 			throw new \Exception($this->db->error);
 	}
 
 	public function rollback() : void {
-		if ($this->db->rollback() === false)
+		if (!$this->db->rollback())
 			throw new \Exception($this->db->error);
 	}
 
 	public function commit() : void {
-		if ($this->db->commit() === false)
+		if (!$this->db->commit())
 			throw new \Exception($this->db->error);
 	}
 
