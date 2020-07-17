@@ -5,8 +5,9 @@ namespace QueryManager;
 use PHPUnit\Framework\TestCase;
 
 class TestConnection implements IConnection {
-	public function __construct(string $s, string $usr, string $psw, string $db = "") {}
+	public function __construct(string $s, string $usr, string $psw, string $db = "") { $this->db = $db; }
 	public function execute(QueryPiece $qp) : ?array { return [$qp]; }
+	public function database() { return $this->db; }
 	public function last_insert_id() {}
 	public function transaction() : void {}
 	public function rollback() : void {}
@@ -29,6 +30,18 @@ class Person extends Table {
 
 	public function non_standard_query(IConnection $conn, $value) {
 		return $conn->execute(new QueryPiece("DO WEIRD STUFF ?", $value));
+	}
+}
+
+class Inherit extends Table {
+
+	public function __construct() {
+		$select = new Formatter("a", "b", "c");
+		parent::__construct(Table::INHERIT, "inherit", $select, $select, $select);
+	}
+
+	public function inherit_db(IConnection $conn) : array {
+		return parent::select($conn);
 	}
 }
 
@@ -77,6 +90,33 @@ class TableTest extends TestCase {
 			[new QueryPiece("DO WEIRD STUFF ?", [-1])],
 			$table->non_standard_query($this->conn(), [-1])
 		);
+	}
+
+	public function testDatabaseInherit() {
+		$conn1 = new TestConnection("", "", "", "some_db");
+		$conn2 = new TestConnection("", "", "", "other_db");
+		$table = new Inherit;
+
+		list($qp) = $table->inherit_db($conn1);
+		$this->assertEquals("SELECT a,b,c FROM some_db.inherit", $qp->template);
+
+		list($qp) = $table->inherit_db($conn2);
+		$this->assertEquals("SELECT a,b,c FROM other_db.inherit", $qp->template);
+	}
+
+	public function testDatabaseNotSelected() {
+		$this->expectException(\Exception::class);
+
+		$conn = new TestConnection("", "", "", "");
+		$table = new Inherit;
+
+		$table->inherit_db($conn);
+	}
+
+	public function testNoConnectionProvided() {
+		$this->expectException(\Exception::class);
+
+		(new Inherit)->fullname();
 	}
 }
 

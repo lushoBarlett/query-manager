@@ -78,7 +78,7 @@ class Table {
 				throw new \Exception("Connection not supplied to fetch database name for a table set to inherit");
 			if (!$conn->database())
 				throw new \Exception("Database not selected in supplied Connection");
-			return "{$conn->database}.{$this->tablename}";
+			return "{$conn->database()}.{$this->tablename}";
 		}
 		return "{$this->database}.{$this->tablename}";
 	}
