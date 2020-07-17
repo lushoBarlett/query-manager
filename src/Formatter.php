@@ -96,6 +96,8 @@ class Formatter {
 		if (is_object($data))
 			$data = (array)$data;
 
+		$formatted = [];
+
 		foreach($this->keys as $key)
 			if (array_key_exists($key, $data))
 				$formatted[$key] = $data[$key];

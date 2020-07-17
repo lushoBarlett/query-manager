@@ -5,7 +5,9 @@ namespace QueryManager;
 use QueryManager\QueryPiece as QP;
 
 class Table {
-	
+
+	const INHERIT = '@inherit';
+
 	private $database;
 	private $tablename;
 	private $selectf;
@@ -27,7 +29,7 @@ class Table {
 	}
 
 	public function select(IConnection $conn, QP $extra = null) {
-		$s = QP::Select("{$this->selectf} FROM {$this->fullname()}");
+		$s = QP::Select("{$this->selectf} FROM {$this->fullname($conn)}");
 		return $conn->execute($extra ? QP::merge($s, $extra) : $s);
 	}
 
@@ -38,7 +40,7 @@ class Table {
 
 		$formatted = $this->insertf->as_array($data);
 		$i = QP::InsertInto(
-			"{$this->fullname()} (" .
+			"{$this->fullname($conn)} (" .
 			implode(',', array_keys($formatted)) .
 			") VALUES (" .
 			$qmarks(count($formatted)) .
@@ -58,7 +60,7 @@ class Table {
 
 		$formatted = $this->updatef->as_array($data);
 		$u = QP::Update(
-			"{$this->fullname()} SET " .
+			"{$this->fullname($conn)} SET " .
 			$set($formatted),
 			...array_values($formatted)
 		);
@@ -66,11 +68,18 @@ class Table {
 	}
 
 	public function delete(IConnection $conn, QP $extra = null) {
-		$d = QP::DeleteFrom($this->fullname());
+		$d = QP::DeleteFrom($this->fullname($conn));
 		return $conn->execute($extra ? QP::merge($d, $extra) : $d);
 	}
 
-	public function fullname() : string {
+	public function fullname(?IConnection $conn = null) : string {
+		if ($this->database === self::INHERIT) {
+			if (!$conn)
+				throw new \Exception("Connection not supplied to fetch database name for a table set to inherit");
+			if (!$conn->database())
+				throw new \Exception("Database not selected in supplied Connection");
+			return "{$conn->database}.{$this->tablename}";
+		}
 		return "{$this->database}.{$this->tablename}";
 	}
 }
