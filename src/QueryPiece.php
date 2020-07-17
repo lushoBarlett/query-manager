@@ -7,14 +7,13 @@ class QueryPiece {
 	public $template = "";
 	public $fragments = [];
 
-	public function __construct(string $query = "") {
+	public function __construct(string $query = "", ...$frags) {
 		$this->template = $query;
-		$this->fragments = array_slice(func_get_args(),1);
+		$this->fragments = $frags;
 	}
 
-	public static function merge() : self {
-		$qps = func_get_args();
-		return new QueryPiece(
+	public static function merge(...$qps) : self {
+		return new self(
 			implode(" ", array_map(function($qp) { return $qp->template; }, $qps)),
 			...array_reduce(
 				array_map( function($qp) { return $qp->fragments; }, $qps ),
@@ -24,19 +23,16 @@ class QueryPiece {
 		);
 	}
 
-	private static function prepend(string $inyection, $qp) : self {
+	private static function prepend(string $inyection, $qp, ...$frags) : self {
 		if (is_string($qp))
-			return new QueryPiece(
-				"$inyection $qp",
-				...array_slice(func_get_args(), 2)
-			);
+			return new self("$inyection $qp", ...$frags);
 
-		if (get_class($qp) == self::class) {
+		if ($qp instanceof self) {
 			$qp->template = "$inyection $qp->template";
 			return $qp;
 		}
 
-		throw new \Exception("Argument 1 should be either string or QueryPiece");
+		throw new \Exception("Argument 2 should be either string or QueryPiece");
 	}
 
 	public static function Select()         { return self::prepend("SELECT",          ...func_get_args()); }
