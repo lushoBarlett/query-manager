@@ -5,9 +5,11 @@ namespace QueryManager;
 class Connection implements IConnection {
 
 	private $db;
+	private $dbname;
 
 	public function __construct(string $s, string $usr, string $psw, string $db = "") {
 		$this->db = new \mysqli($s, $usr, $psw, $db);
+		$this->dbname = $db;
 
 		if ($this->db->connect_errno)
 			throw new \Exception($this->db->connect_error);
@@ -67,6 +69,9 @@ class Connection implements IConnection {
 		return null;
 	}
 
+	public function database() : string {
+		return $this->dbname;
+	}
 	public function last_insert_id() {
 		return $this->db->insert_id;
 	}
