@@ -38,6 +38,7 @@ class QueryPiece {
 	public static function Select()         { return self::prepend("SELECT",          ...func_get_args()); }
 	public static function SelectDistinct() { return self::prepend("SELECT DISTINCT", ...func_get_args()); }
 	public static function From()           { return self::prepend("FROM",            ...func_get_args()); }
+	public static function InnerJoin()      { return self::prepend("INNER JOIN",      ...func_get_args()); }
 	public static function Where()          { return self::prepend("WHERE",           ...func_get_args()); }
 	public static function OrderBy()        { return self::prepend("ORDER BY",        ...func_get_args()); }
 	public static function GroupBy()        { return self::prepend("GROUP BY",        ...func_get_args()); }

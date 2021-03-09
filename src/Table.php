@@ -76,9 +76,9 @@ class Table {
 		if ($this->database === self::INHERIT) {
 			if (!$conn)
 				throw new \Exception("Connection not supplied to fetch database name for a table set to inherit");
-			if (!$conn->database())
+			if (!$conn->db_name())
 				throw new \Exception("Database not selected in supplied Connection");
-			return "{$conn->database()}.{$this->tablename}";
+			return $conn->inherit_db($this->tablename);
 		}
 		return "{$this->database}.{$this->tablename}";
 	}

@@ -4,16 +4,7 @@ namespace QueryManager;
 
 use PHPUnit\Framework\TestCase;
 
-class TestConnection implements IConnection {
-	public function __construct(string $s, string $usr, string $psw, string $db = "") { $this->db = $db; }
-	public function execute(QueryPiece $qp) : ?array { return [$qp]; }
-	public function database() { return $this->db; }
-	public function last_insert_id() {}
-	public function transaction() : void {}
-	public function rollback() : void {}
-	public function commit() : void {}
-	public function errors() : object { return new stdClass; }
-}
+require_once __DIR__ . '/TestConnection.php';
 
 class Person extends Table {
 
