@@ -14,7 +14,7 @@ Manager for query building and execution.
 The query building block is a QueryPiece class. First constructor argument is a statement, the rest are blank fillers. Both things are optional, if nothing is provided it will do nothing QueryPiece. Combined they form a prepared query
 ```php
 $qp = new QueryPiece(
-	"SELECT * FROM mytable WHERE id = ? and name = ?, 1, "some name"
+	"SELECT * FROM mytable WHERE id = ? and name = ?", 1, "some name"
 );
 $qp->template // "SELECT * FROM mytable WHERE id = ? and name = ?"
 $qp->fragments // [1, "some name"]
@@ -25,7 +25,7 @@ $qp1 = new QueryPiece("SELECT * FROM mytable");
 $qp2 = new QueryPiece("WHERE id = ?", 1);
 $qp3 = new QueryPiece("and name = ?", "some name");
 
-// procudes the same object as the first example
+// produces the same object as the first example
 QueryPiece::merge($qp1, $qp2, $qp3);
 ```
 
