@@ -8,80 +8,100 @@ class Table {
 
 	const INHERIT = '@inherit';
 
-	private $database;
-	private $tablename;
-	private $selectf;
-	private $insertf;
-	private $updatef;
+	protected static $connection = null;
+	protected static $db = "";
+	protected static $name = "";
 	
-	protected function __construct(
-		string $database,
-		string $tablename,
-		Formatter $selectf,
-		Formatter $insertf,
-		Formatter $updatef
-	) {
-		$this->database = $database;
-		$this->tablename = $tablename;
-		$this->selectf = implode(',', $selectf->keys);
-		$this->insertf = $insertf;
-		$this->updatef = $updatef;
+	public static $insert_formatter = null;
+	public static $update_formatter = null;
+
+	public static function connect(IConnection $conn) {
+		static::$connection = $conn;
 	}
 
-	public function select(IConnection $conn, QP $extra = null) {
-		$s = QP::Select("{$this->selectf} FROM {$this->fullname($conn)}");
-		return $conn->execute($extra ? QP::merge($s, $extra) : $s);
+	public static function disconnect() {
+		static::$connection = null;
 	}
 
-	public function insert(IConnection $conn, $data, QP $extra = null) {
-		$qmarks = function(int $n) {
-			return rtrim(str_repeat('?,',$n), ',');
-		};
+	public static function db_name() : string {
+		if (static::$db === self::INHERIT) {
+			if (!static::$connection)
+				throw new \Exception("No connection provided to get database name");
 
-		$formatted = $this->insertf->as_array($data);
-		$i = QP::InsertInto(
-			"{$this->fullname($conn)} (" .
-			implode(',', array_keys($formatted)) .
-			") VALUES (" .
-			$qmarks(count($formatted)) .
-			")",
-			...array_values($formatted)
-		);
-		return $conn->execute($extra ? QP::merge($i, $extra) : $i);
-	}
+			if (empty($db_name = static::$connection->db_name()))
+				throw new \Exception("Connection has empty database name");
 
-	public function update(IConnection $conn, $data, QP $extra = null) {
-		$set = function(array $formatted) {
-			$s = [];
-			foreach ($formatted as $key => $value)
-				$s[] = "{$key} = ?";
-			return implode(',', $s);
-		};
-
-		$formatted = $this->updatef->as_array($data);
-		$u = QP::Update(
-			"{$this->fullname($conn)} SET " .
-			$set($formatted),
-			...array_values($formatted)
-		);
-		return $conn->execute($extra ? QP::merge($u, $extra) : $u);
-	}
-
-	public function delete(IConnection $conn, QP $extra = null) {
-		$d = QP::DeleteFrom($this->fullname($conn));
-		return $conn->execute($extra ? QP::merge($d, $extra) : $d);
-	}
-
-	public function fullname(?IConnection $conn = null) : string {
-		if ($this->database === self::INHERIT) {
-			if (!$conn)
-				throw new \Exception("Connection not supplied to fetch database name for a table set to inherit");
-			if (!$conn->db_name())
-				throw new \Exception("Database not selected in supplied Connection");
-			return $conn->inherit_db($this->tablename);
+			return $db_name;
 		}
-		return "{$this->database}.{$this->tablename}";
+		
+		return static::$db;
+	}
+
+	public static function name() : string {
+		return static::$name;
+	}
+
+	public static function fullname($column = null) : Name {
+		$name = new Name(static::db_name(), static::name());
+		if ($column)
+			$name->column($column);
+
+		return $name;
+	}
+
+	public static function columns() : array {
+		return [];
+	}
+
+	public static function select(?QP $extra = null) : ?array {
+		$fullname = static::fullname();
+		$columns = Column::serialize(static::columns());
+
+		$s = QP::Select("{$columns} FROM {$fullname}");
+
+		return static::$connection->execute($extra ? QP::merge($s, $extra) : $s);
+	}
+
+	public static function insert($data, ?QP $extra = null) {
+		$qmarks = function(array $values) {
+			return "(" . rtrim(str_repeat('?,', count($values)), ',') . ")";
+		};
+
+		$formatted = static::$insert_formatter->as_array($data);
+
+		list($columns, $values) = [array_keys($formatted), array_values($formatted)];
+
+		$fullname = static::fullname();
+		$columns = Column::serialize($columns);
+
+		$i = QP::InsertInto("$fullname ($columns) VALUES {$qmarks($values)}", ...$values);
+
+		return static::$connection->execute($extra ? QP::merge($i, $extra) : $i);
+	}
+
+	public static function update($data, ?QP $extra = null) {
+		$qmarks = function(array $columns) {
+			$columns = array_map(function($c) { return "$c = ?"; }, $columns);
+			return implode(',', $columns);
+		};
+
+		$formatted = static::$update_formatter->as_array($data);
+
+		list($columns, $values) = [array_keys($formatted), array_values($formatted)];
+
+		$fullname = static::fullname();
+
+		$u = QP::Update("$fullname SET {$qmarks($columns)}", ...$values);
+
+		return static::$connection->execute($extra ? QP::merge($u, $extra) : $u);
+	}
+
+	public static function delete(QP $extra = null) {
+		$d = QP::DeleteFrom(static::fullname());
+
+		return static::$connection->execute($extra ? QP::merge($d, $extra) : $d);
 	}
 }
 
 ?>
+

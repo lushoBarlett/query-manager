@@ -8,106 +8,136 @@ require_once __DIR__ . '/TestConnection.php';
 
 class Person extends Table {
 
-	public function __construct() {
-		$select = new Formatter("name", "age", "fav_food");
-
-		$insert = new Formatter("name", "age", "fav_food");
-		$insert->add_default("fav_food", "banana");
-
-		$update = new Formatter("age", "fav_food");
-
-		parent::__construct("mydb", "person", $select, $insert, $update);
+	public static $db = "mydb";
+	public static $name = "person";
+	public static function columns() : array {
+		return [
+			new Column("name"),
+			new Column("age"),
+			new Column("fav_food")
+		];
 	}
 
-	public function non_standard_query(IConnection $conn, $value) {
-		return $conn->execute(new QueryPiece("DO WEIRD STUFF ?", $value));
+	public static function non_standard_query($value) {
+		return self::$connection->execute(new QueryPiece("DO WEIRD STUFF ?", $value));
 	}
 }
 
 class Inherit extends Table {
 
-	public function __construct() {
-		$select = new Formatter("a", "b", "c");
-		parent::__construct(Table::INHERIT, "inherit", $select, $select, $select);
+	public static $db = Table::INHERIT;
+	public static $name = "inherit";
+	public static function columns() : array {
+		return [
+			new Column("a"),
+			new Column("b"),
+			new Column("c")
+		];
 	}
+}
 
-	public function inherit_db(IConnection $conn) : array {
-		return parent::select($conn);
+class StringColumns extends Table {
+	public static $db = "mydb";
+	public static $name = "strings";
+	public static function columns() : array {
+		return ["a", new Column("b"), "c"];
 	}
 }
 
 class TableTest extends TestCase {
 
-	private function conn() { return new TestConnection("","",""); }
+	private function conn($db = "") {
+		return new TestConnection("","","",$db);
+	}
 
+	public function setUp() : void {
+		Person::connect($this->conn());
+
+		$insertf = new Formatter("name", "age", "fav_food");
+		$insertf->add_default("fav_food", "banana");
+		Person::$insert_formatter = $insertf;
+
+		$updatef = new Formatter("age", "fav_food");
+		Person::$update_formatter = $updatef;
+	}
+
+	public function testName() {
+		$this->assertEquals("person", Person::name());
+	}
+
+	public function testFullname() {
+		$this->assertEquals("`mydb`.`person`", Person::fullname());
+	}
+	
 	public function testSelect() {
-		$table = new Person;
 		$this->assertEquals(
-			[new QueryPiece("SELECT name,age,fav_food FROM mydb.person")],
-			$table->select($this->conn())
+			[new QueryPiece("SELECT name,age,fav_food FROM `mydb`.`person`")],
+			Person::select()
 		);
 	}
 
 	public function testInsert() {
-		$table = new Person;
 		$this->assertEquals(
 			[new QueryPiece(
-				"INSERT INTO mydb.person (name,age,fav_food) VALUES (?,?,?)",
+				"INSERT INTO `mydb`.`person` (name,age,fav_food) VALUES (?,?,?)",
 				"gerald", 72, "banana"
 			)],
-			$table->insert($this->conn(), ["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
+			Person::insert(["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
 		);
 	}
 
 	public function testUpdate() {
-		$table = new Person;
 		$this->assertEquals(
-			[new QueryPiece("UPDATE mydb.person SET age = ?", 72)],
-			$table->update($this->conn(), ["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
+			[new QueryPiece("UPDATE `mydb`.`person` SET age = ?", 72)],
+			Person::update(["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
 		);
 	}
 
 	public function testDelete() {
-		$table = new Person;
 		$this->assertEquals(
-			[new QueryPiece("DELETE FROM mydb.person")],
-			$table->delete($this->conn())
+			[new QueryPiece("DELETE FROM `mydb`.`person`")],
+			Person::delete()
 		);
 	}
 
 	public function testNonStandardQuery() {
-		$table = new Person;
 		$this->assertEquals(
 			[new QueryPiece("DO WEIRD STUFF ?", [-1])],
-			$table->non_standard_query($this->conn(), [-1])
+			Person::non_standard_query([-1])
 		);
 	}
 
 	public function testDatabaseInherit() {
-		$conn1 = new TestConnection("", "", "", "some_db");
-		$conn2 = new TestConnection("", "", "", "other_db");
-		$table = new Inherit;
+		$conn1 = $this->conn("some_db");
+		$conn2 = $this->conn("other_db");
 
-		list($qp) = $table->inherit_db($conn1);
-		$this->assertEquals("SELECT a,b,c FROM some_db.inherit", $qp->template);
+		Inherit::connect($conn1);
+		list($qp) = Inherit::select();
+		$this->assertEquals("SELECT a,b,c FROM `some_db`.`inherit`", $qp->template);
 
-		list($qp) = $table->inherit_db($conn2);
-		$this->assertEquals("SELECT a,b,c FROM other_db.inherit", $qp->template);
+		Inherit::connect($conn2);
+		list($qp) = Inherit::select();
+		$this->assertEquals("SELECT a,b,c FROM `other_db`.`inherit`", $qp->template);
 	}
 
 	public function testDatabaseNotSelected() {
 		$this->expectException(\Exception::class);
 
-		$conn = new TestConnection("", "", "", "");
-		$table = new Inherit;
-
-		$table->inherit_db($conn);
+		Inherit::connect($this->conn());
+		Inherit::select();
 	}
 
 	public function testNoConnectionProvided() {
 		$this->expectException(\Exception::class);
 
-		(new Inherit)->fullname();
+		Inherit::disconnect();
+		Inherit::db_name();
+	}
+
+	public function testStringColumns() {
+		StringColumns::connect($this->conn());
+		list($qp) = StringColumns::select();
+		$this->assertEquals("SELECT a,b,c FROM `mydb`.`strings`", $qp->template);
 	}
 }
 

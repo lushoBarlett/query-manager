@@ -73,10 +73,6 @@ class Connection implements IConnection {
 		return $this->dbname;
 	}
 
-	public function inherit_db(string $tablename) : string {
-		return "{$this->dbname}.{$tablename}";
-	}
-
 	public function last_insert_id() {
 		return $this->db->insert_id;
 	}

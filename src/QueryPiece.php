@@ -24,7 +24,7 @@ class QueryPiece {
 	}
 
 	private static function prepend(string $inyection, $qp, ...$frags) : self {
-		if (is_string($qp))
+		if (is_string($qp) || $qp instanceof Name)
 			return new self("$inyection $qp", ...$frags);
 
 		if ($qp instanceof self) {
@@ -32,7 +32,7 @@ class QueryPiece {
 			return $qp;
 		}
 
-		throw new \Exception("Argument 2 should be either string or QueryPiece");
+		throw new \Exception("Argument 2 should be either string, Name, or QueryPiece");
 	}
 
 	public static function Select()         { return self::prepend("SELECT",          ...func_get_args()); }

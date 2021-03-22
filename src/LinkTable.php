@@ -4,26 +4,25 @@ namespace QueryManager;
 
 use QueryManager\QueryPiece as QP;
 
-class LinkTable {
-
-	public $fullname;
-	public $foreign1;
-	public $foreign2;
-
-	public function __construct(string $fullname, string $foreign1, string $foreign2) {
-		$this->fullname = $fullname;
-		$this->foreign1 = $foreign1;
-		$this->foreign2 = $foreign2;
-	}
+class LinkTable extends Table {
 	
-	public function inner_join(PrimaryColumn $p1, PrimaryColumn $p2) {
-		$first  = "{$this->fullname}.{$this->foreign1}";
-		$second = "{$this->fullname}.{$this->foreign2}";
+	public static function inner_join() {
+		list($foreign1, $foreign2) = static::columns();
+
+		$primary1 = $foreign1->foreign;
+		$primary2 = $foreign2->foreign;
+		
+		$foreign1 = Name::stringify(static::db_name(), static::name(), $foreign1);
+		$foreign2 = Name::stringify(static::db_name(), static::name(), $foreign2);
+
+		$table1 = Name::stringify($primary1->db, $primary1->table);
+		$table2 = Name::stringify($primary2->db, $primary2->table);
+		$link = static::fullname();
 
 		return QP::merge(
-			QP::From($p1->table),
-			QP::InnerJoin("{$this->fullname} ON {$p1->fullname()} = $first"),
-			QP::InnerJoin("{$p2->table} ON $second = {$p2->fullname()}")
+			QP::From($table1),
+			QP::InnerJoin("$link ON $primary1 = $foreign1"),
+			QP::InnerJoin("$table2 ON $foreign2 = $primary2")
 		);
 	}
 }
