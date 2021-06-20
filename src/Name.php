@@ -7,15 +7,13 @@ class Name {
 	public $db;
 	public $table;
 	public $column;
+	public $alias;
 
-	public function __construct($db = null, $table = null, $column = null) {
+	public function __construct($db = null, $table = null, $column = null, $alias = null) {
 		$this->db = $db;
 		$this->table = $table;
 		$this->column = $column;
-	}
-
-	public static function make() : self {
-		return new Name;
+		$this->alias = $alias;
 	}
 
 	public static function stringify(...$objects) {
@@ -39,8 +37,11 @@ class Name {
 			$objects[] = $this->table;
 		if ($this->column)
 			$objects[] = $this->column;
-
-		return self::stringify(...$objects);
+		
+		$name = self::stringify(...$objects);
+		if ($this->alias)
+			$name .= " AS `$this->alias`";
+		return $name;
 	}
 
 	public function db($db) : self {
@@ -55,6 +56,11 @@ class Name {
 
 	public function column($column) : self {
 		$this->column = $column;
+		return $this;
+	}
+
+	public function alias($alias) : self {
+		$this->alias = $alias;
 		return $this;
 	}
 }

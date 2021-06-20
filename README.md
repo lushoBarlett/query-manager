@@ -11,7 +11,7 @@ Manager for query building and execution.
 ## Implementation
 
 ### Query Pieces
-The query building block is a QueryPiece class. First constructor argument is a statement, the rest are blank fillers. Both things are optional, if nothing is provided it will do nothing QueryPiece. Combined they form a prepared query
+The query building block is a `QueryPiece` class. In mathematical terms it is nothing more than a Monoid, because it acts as a pair of string and array. First constructor argument is the statement, the rest are the values filling that statement, called _fragments_. All arguments are optional, if nothing is provided you get the identity, empty string and array.
 ```php
 $qp = new QueryPiece(
 	"SELECT * FROM mytable WHERE id = ? and name = ?", 1, "some name"
@@ -19,113 +19,135 @@ $qp = new QueryPiece(
 $qp->template // "SELECT * FROM mytable WHERE id = ? and name = ?"
 $qp->fragments // [1, "some name"]
 ```
-These can be made smaller and then be merged. Don't worry about adding extra spaces.
+These can be made smaller and then be merged. Spaces are added automatically.
 ```php
 $qp1 = new QueryPiece("SELECT * FROM mytable");
 $qp2 = new QueryPiece("WHERE id = ?", 1);
-$qp3 = new QueryPiece("and name = ?", "some name");
+$qp3 = new QueryPiece("AND name = ?", "some name");
 
 // produces the same object as the first example
-QueryPiece::merge($qp1, $qp2, $qp3);
+$qp = QueryPiece::merge($qp1, $qp2, $qp3);
 ```
 
-There's also a lot of static methods to make it look cooler, like `QueryPiece::Select(...)` which is the same as `new QueryPiece("SELECT ...")` and you can `QueryPiece::merge(...)` these to achieve nice code.
+There's also a lot of static methods to make it look better, like `QueryPiece::Select(...)` which is the same as `new QueryPiece("SELECT ...")`.
 
-### Formatters
-The Formatter class is a very helpful tool for sanitizing and managing complex default values when the database can't do it. The main feature it provides is best justified by the Table class, explained later. Basically it formats an associative array or object to **not have extra keys defined**, and if some are missing, the gap can be filled by a specified default value. Other less common things might be mapping the values or replacing the values with some rules.
+### Formatters and Fields
+The `Formatter` and `Field` classes are very helpful tool for sanitizing input. They are quite useful in the `Table` class, explained later, but they are not restricted to that use.
 
-It takes a list of arguments, the desired keys. Then you can add defaults
+A `Field` defines a pipeline of operations to be performed on a value. There's maps, replacements, options, type and class restrictions and type casts.
 ```php
-$f = new Formatter("first", "second", "third");
-$f->add_default("first", 0);
+$pipe = new Field("name")
+	->cast(Field::String)
+	->in(["Hi", "Bye", "Hello", "Goodbye"])
+	->replace([
+		"Hi" => "Hello"
+		"Bye" => "Goodbye"
+	]),
+	->map(fn($v) => $v . "!");
+
+$pipe->pipeline("Hi"); // "Hello!"
+$pipe->pipeline("Goodbye"); // "Goodbye!"
 ```
-Following this, you can call the formatting functions with some data
+A `Formatter` is a just a set of those fields, but we can use new retrictions on those fields. Fields can be _optional_ or _required_. If they are optional they can have a default value to be used in the pipeline. The `Formatter` can also take strings, those represent optional fields with no default and no pipeline.
 ```php
-$data = [
-	"unwanted key" => 0,
-	"second" => 1
-]
-
-// This produces ["first" => 0, "second" => 1]
-$f->as_array($data);
-// This produces (object)["first" => 0, "second" => 1]
-$f->as_object($data);
-// Note: "third" is not part of the result
+$f = new Formatter(
+	Field::default("first", 0),
+	Field::required("second"),
+	Field::optional("third")
+);
 ```
-Both formatting functions will accept either an associative array or an object.
+Following this, you can call the formatting functions with some data. Note that formatting arrays and objects is the same, and they will be returned as such.
+```php
+$data = ["unwanted key" => 0, "second" => 1];
 
+$f->format($data); // ["first" => 0, "second" => 1]
+$f->format((object)$data); // {"first": 0, "second": 1}
+```
 ### Columns
 
-A Column class just holds a string, the name of the column. It can also specify if it is a primary column (also meaning unique), if it is unique, and if it is foreign. Last case, it will hold a Name class referring to said foreign column.
+A `Column` class just holds a string, the name of the column. It can also specify if it is a primary column (also meaning unique), if it is unique, and if it is foreign. In the latter, it will hold a `Name` class referring to said foreign column.
 
 ```php
-$column = new Column("this_id");
-$column->primary()->foreign(new Name("db", "other_table", "other_id"));
+$column = new Column("this_id")
+	->primary()
+	->foreign(new Name("db", "other_table", "other_id"));
+
 echo $column // "this_id"
 ```
 
 ### Names
 
-A Name is a class that holds a database, table, and or column name. It can make a valid string for SQL to use, or just use the data internally.
+A `Name` is a class that holds a database, table, column name, and or alias. It can make a valid string for SQL to use, or just use the data internally.
 
 For database, an `IConnection` is also accepted. For columns, a `Column` is also accepted.
 
-Not all three are required, one or two will work as well.
+Not all four are required, any combination will work. Be wary that some combinations don't make sense.
 
 ```php
-$fullname = new Name("database", "table", "column");
-echo $fullname; // `database`.`table`.`column`
+echo (new Name)
+	->table("table")
+	->alias("t") // `table` AS `t`
 
-echo Name::make()->table("table")->column(Column::ALL) // `table`.*
+$fullname = new Name("database", "table", "column", "alias");
 
 echo $fullname->db; // database
 echo $fullname->table; // table
 echo $fullname->column; // column
+echo $fullname->alias; // alias
 ```
 
 ### Tables
 
-The Table is a _static_ base class for any table. It implements 4 basic _static_ functions, that are available for the subclasses. These are select, insert, update and delete. You **will** need more than this... but that's where you come in and implement more methods. No matter the complexity of the software, you always need that one long and weird query that makes things so fast and easy.
+The `Table` is a _static_ base class for any table. It implements many basic _static_ functions, that are available for the subclasses.
 
-The 4 functions take an optional QueryPiece as argument, to be appended at the end of the basic query. **Note:** no function includes a *where* clause by default, they include just enough to be executed.
-
-`Table::select()` will give you results automatically with what you return from `MyClass::columns()` (see example). Whereas insert and update will require a `Formatter` class to sanitize the values they take in, because they take them in as an associative array or object. Delete does not need anything, of course.
+The subclasses will need to implement one function, `connect`. There, the suclass will construct a `TableData` object and pass it to `initialize` along with the connection provided in `connect`.
 
 Suppose we have a `mydb.person` table that has columns `id, name, age, fav_food`.
 
 Construction
 ```php
 class Person extends Table {
-	public static $db = "mydb";
-	public static $name = "person";
-	public static function columns() {
+
+	public static function connect(IConnection $conn) {
 		// Note: if you don't need Column utilities,
 		// you can use plain strings.
-		// e.g. "age" instead of new Column("age")
-		return [
-			(new Column("id"))->primary(),
-			new Column("name"),
+		$columns = [
+			Column::make_primary("id"),
+			"name",
 			"age",
-			new Column("fav_food"),
+			"fav_food"
 		];
+
+		// forbids primary key insert
+		$insert = new Formatter(
+			"name",
+			"age",
+			Field::default("fav_food", "banana")
+		);
+
+		// also forbids name update
+		$update = new Formatter(
+			"age",
+			"fav_food"
+		);
+
+		$data = (new TableData)
+			->db("mydb")
+			->name("person")
+			->columns($columns)
+			->on_insert($insert)
+			->on_update($update);
+
+		static::initialize($conn, $data);
 	}
-	
 }
 
 //...
 
 $conn = get_my_connection();
-
-$insert = new Formatter("name", "age", "fav_food"); // did it again
-$insert->add_default("fav_food", random_food()); // very cool
-
-$update = new Formatter("age", "fav_food"); // no new name for you!
-
 Person::connect($conn);
-Person::$insert_formatter = $insert;
-Person::$update_formatter = $update;
 ```
-The Table functions are public, so you can already call `Person::select()`. And let's not forget there is no where clause in update and delete so be wary of that! (not that it matters if you don't `$conn->commit()`)
+The Table that execute a query on their own are public, so you can already call from outside, using any subclass. And always remember to `$conn->commit()`.
 ```php
 // $data can be put directly here, the formatter takes care of cleanup.
 // Table and Connection take care statement preparation,
@@ -135,48 +157,16 @@ Person::insert($data);
 ```
 ### Connections
 
-What does the Connection do anyway? Connecting, preparing statements and automatically using a transaction model. The construction is the same as a normal mysqli.
+The Connection holds data necessary to connect to the database. It also prepares statements, passed as QueryPieces and it automatically uses a transaction model. The construction is the same as a normal mysqli class.
 ```php
 // Note: database is optional
 $c = new Connection("host", "user", "password", "database");
 ```
-But it performs query preparation __always__, and also has transaction managing functions exposed and used automatically as well. It starts a transaction in constructor, rolls back on any error and closes on destruction. It will not commit on its own, so you have to do it.
+But it __always__ performs query preparation, and also has transaction managing functions exposed and used automatically as well. It starts a transaction in constructor, rolls back on any error and closes on destruction. It will not commit on its own, so you have to do it.
 ```php
 $qp = new QueryPiece(...);
-$array_or_null = $c->execute($qp);
+$result = $c->execute($qp);
 $c->commit();
 $c->transaction();
 $c->rollback();
-```
-
-### Link Tables
-
-A link table is a subclass of Table, which adds an extra function called `LinkTable::inner_join()` and is essencially a many to many linking QueryPiece for you to use for free without bothering.
-
-```php
-class LinkExample extends LinkTable {
-	public static $db = "mydb";
-	public static $name = "table1_table2";
-	public static function columns() {
-		$key1 = new Name(self::$db, "table1", "id");
-		$key2 = new Name(self::$db, "table2", "id");
-		// foreign columns must come first, and in order
-		return [
-			(new Column("link1"))->foreign($key1),
-			(new Column("link2"))->foreign($key2),
-			new Column("extra1"),
-			new Column("extra2"),
-		];
-	}
-}
-
-//...
-
-// Note: inner_join builds from "FROM" keyword of the query.
-// Remember you can use the 4 basic operations on link tables as well.
-$qp = QueryPiece::merge(
-	QueryPiece::Select(...),
-	LinkExample::inner_join(),
-	QueryPiece::Where(...)
-);
 ```

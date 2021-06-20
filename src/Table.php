@@ -4,41 +4,44 @@ namespace QueryManager;
 
 use QueryManager\QueryPiece as QP;
 
-class Table {
+abstract class Table {
 
-	const INHERIT = '@inherit';
-
-	protected static $connection = null;
-	protected static $db = "";
-	protected static $name = "";
+	const Inherit = '@inherit';
 	
-	public static $insert_formatter = null;
-	public static $update_formatter = null;
+	private static $connected = [];
 
-	public static function connect(IConnection $conn) {
-		static::$connection = $conn;
+	protected static function data() : TableData {
+		// TODO: assert if no connection is present
+		return static::$connected[static::class];
 	}
 
-	public static function disconnect() {
-		static::$connection = null;
+	protected static function initialize(IConnection $conn, TableData $data) : void {
+		$data->connection = $conn;
+		static::$connected[static::class] = $data;
+	}
+
+	// subclass has to construct and provide data to initialize
+	abstract public static function connect(IConnection $conn) : void;
+
+	public static function disconnect() : void {
+		unset(static::$connected[static::class]);
 	}
 
 	public static function db_name() : string {
-		if (static::$db === self::INHERIT) {
-			if (!static::$connection)
-				throw new \Exception("No connection provided to get database name");
+		$data = static::data();
 
-			if (empty($db_name = static::$connection->db_name()))
-				throw new \Exception("Connection has empty database name");
+		if ($data->db === self::Inherit) {
+			if (!empty($db_name = static::data()->connection->db_name()))
+				return $db_name;
 
-			return $db_name;
+			throw new \Exception("Connection has empty database name");
 		}
 		
-		return static::$db;
+		return $data->db;
 	}
 
 	public static function name() : string {
-		return static::$name;
+		return static::data()->name;
 	}
 
 	public static function fullname($column = null) : Name {
@@ -49,59 +52,115 @@ class Table {
 		return $name;
 	}
 
-	public static function columns() : array {
-		return [];
+	protected static function maybe_merge(?QP $a, ?QP $b) : ?QP {
+		if ($a && $b)
+			return QP::merge($a, $b);
+
+		return $a ? $a : $b;
 	}
 
-	public static function select(?QP $extra = null) : ?array {
-		$fullname = static::fullname();
-		$columns = Column::serialize(static::columns());
+	protected static function default_formatter() : Formatter {
+		$fields = [];
+		foreach (static::data()->columns as $column)
+			$fields[] = $column->name;
 
-		$s = QP::Select("{$columns} FROM {$fullname}");
-
-		return static::$connection->execute($extra ? QP::merge($s, $extra) : $s);
+		return new Formatter(...$fields);
 	}
 
-	public static function insert($data, ?QP $extra = null) {
-		$qmarks = function(array $values) {
-			return "(" . rtrim(str_repeat('?,', count($values)), ',') . ")";
-		};
+	public static function execute(QP $qp) {
+		return static::data()->connection->execute($qp);
+	}
 
-		$formatted = static::$insert_formatter->as_array($data);
-
-		list($columns, $values) = [array_keys($formatted), array_values($formatted)];
+	public static function qp_select_from(...$columns) : QP {
+		if (!count($columns))
+			$columns = static::data()->columns;
 
 		$fullname = static::fullname();
 		$columns = Column::serialize($columns);
 
-		$i = QP::InsertInto("$fullname ($columns) VALUES {$qmarks($values)}", ...$values);
-
-		return static::$connection->execute($extra ? QP::merge($i, $extra) : $i);
+		return QP::Select("$columns FROM $fullname");
 	}
 
-	public static function update($data, ?QP $extra = null) {
-		$qmarks = function(array $columns) {
-			$columns = array_map(function($c) { return "$c = ?"; }, $columns);
-			return implode(',', $columns);
+	public static function select(QP $extra = null) : ?array {
+		$select = static::qp_select_from();
+		return static::execute(static::maybe_merge($select, $extra));
+	}
+
+	public static function qp_insert_into($data) : QP {
+		$qmarks = function($values) {
+			return implode(',', array_fill(0, count($values), '?'));
 		};
 
-		$formatted = static::$update_formatter->as_array($data);
+		$formatter = static::data()->insert_formatter ?: static::default_formatter();
+		$data = (array)$formatter->format($data);
 
-		list($columns, $values) = [array_keys($formatted), array_values($formatted)];
+		list($columns, $values) = [array_keys($data), array_values($data)];
+
+		$fullname = static::fullname();
+		$columns = Column::serialize($columns);
+
+		return QP::InsertInto("$fullname ($columns) VALUES ({$qmarks($values)})", ...$values);
+	}
+
+	public static function insert($data, ?QP $extra = null) : void {
+		$insert = static::qp_insert_into($data);
+		static::execute(static::maybe_merge($insert, $extra));
+	}
+
+	public static function qp_update($data) : QP {
+		$qmarks = function($columns) {
+			return implode(',', array_map(function($c) { return "$c = ?"; }, $columns));
+		};
+
+		$formatter = static::data()->update_formatter ?: static::default_formatter();
+		$data = (array)$formatter->format($data);
+
+		list($columns, $values) = [array_keys($data), array_values($data)];
 
 		$fullname = static::fullname();
 
-		$u = QP::Update("$fullname SET {$qmarks($columns)}", ...$values);
-
-		return static::$connection->execute($extra ? QP::merge($u, $extra) : $u);
+		return QP::Update("$fullname SET {$qmarks($columns)}", ...$values);
 	}
 
-	public static function delete(QP $extra = null) {
-		$d = QP::DeleteFrom(static::fullname());
+	public static function update($data, ?QP $extra = null) : void {
+		$update = static::qp_update($data);
+		static::execute(static::maybe_merge($update, $extra));
+	}
 
-		return static::$connection->execute($extra ? QP::merge($d, $extra) : $d);
+	public static function qp_delete() : QP {
+		return QP::DeleteFrom(static::fullname());
+	}
+
+	public static function delete(?QP $extra = null) : void {
+		$delete = static::qp_delete();
+		static::execute(static::maybe_merge($delete, $extra));
+	}
+
+	protected static function qp_join(string $type, $left, Name $right) : QP {
+		if (is_string($left))
+			$left = static::fullname($left);
+
+		$lefttable = new Name($left->db, $left->table);
+		$righttable = new Name($right->db, $right->table);
+
+		return QP::$type("$righttable ON $left = $right");
+	}
+
+	public static function qp_left_join(...$args) : QP {
+		return static::qp_join("LeftJoin", ...$args);
+	}
+
+	public static function qp_right_join(...$args) : QP {
+		return static::qp_join("RightJoin", ...$args);
+	}
+
+	public static function qp_inner_join(...$args) : QP {
+		return static::qp_join("InnerJoin", ...$args);
+	}
+
+	public static function qp_full_join(...$args) : QP {
+		return static::qp_join("FullJoin", ...$args);
 	}
 }
 
 ?>
-

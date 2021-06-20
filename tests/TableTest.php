@@ -8,57 +8,46 @@ require_once __DIR__ . '/TestConnection.php';
 
 class Person extends Table {
 
-	public static $db = "mydb";
-	public static $name = "person";
-	public static function columns() : array {
-		return [
-			new Column("name"),
-			new Column("age"),
-			new Column("fav_food")
-		];
+	public static function connect(IConnection $conn) : void {
+		static::initialize($conn, (new TableData)
+			->db("mydb")
+			->name("person")
+			->columns("name", "age", "fav_food")
+			->on_insert(new Formatter("name", "age", Field::default("fav_food", "banana")))
+			->on_update(new Formatter("age", "fav_food"))
+		);
 	}
 
 	public static function non_standard_query($value) {
-		return self::$connection->execute(new QueryPiece("DO WEIRD STUFF ?", $value));
+		return self::execute(new QueryPiece("DO WEIRD STUFF ?", $value));
 	}
 }
 
 class Inherit extends Table {
 
-	public static $db = Table::INHERIT;
-	public static $name = "inherit";
-	public static function columns() : array {
-		return [
-			new Column("a"),
-			new Column("b"),
-			new Column("c")
-		];
+	public static function connect(IConnection $conn) : void {
+		static::initialize($conn, (new TableData)
+			->db(Table::Inherit)
+			->name("inherit")
+			->columns("a", "b", "c")
+		);
 	}
 }
 
-class StringColumns extends Table {
-	public static $db = "mydb";
-	public static $name = "strings";
-	public static function columns() : array {
-		return ["a", new Column("b"), "c"];
-	}
-}
+// TODO: expand the test suite
 
 class TableTest extends TestCase {
+
+	private $conn;
 
 	private function conn($db = "") {
 		return new TestConnection("","","",$db);
 	}
 
 	public function setUp() : void {
-		Person::connect($this->conn());
-
-		$insertf = new Formatter("name", "age", "fav_food");
-		$insertf->add_default("fav_food", "banana");
-		Person::$insert_formatter = $insertf;
-
-		$updatef = new Formatter("age", "fav_food");
-		Person::$update_formatter = $updatef;
+		$this->conn = $this->conn();
+		Person::connect($this->conn);
+		Inherit::connect($this->conn);
 	}
 
 	public function testName() {
@@ -77,26 +66,36 @@ class TableTest extends TestCase {
 	}
 
 	public function testInsert() {
+		Person::insert(["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("]);
 		$this->assertEquals(
 			[new QueryPiece(
 				"INSERT INTO `mydb`.`person` (name,age,fav_food) VALUES (?,?,?)",
 				"gerald", 72, "banana"
 			)],
-			Person::insert(["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
+			$this->conn->qps
 		);
 	}
 
 	public function testUpdate() {
+		Person::update(["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("]);
 		$this->assertEquals(
 			[new QueryPiece("UPDATE `mydb`.`person` SET age = ?", 72)],
-			Person::update(["name" => "gerald", "age" => 72, "inyect" => "');DROP DATABASE;("])
+			$this->conn->qps
 		);
 	}
 
 	public function testDelete() {
+		Person::delete();
 		$this->assertEquals(
 			[new QueryPiece("DELETE FROM `mydb`.`person`")],
-			Person::delete()
+			$this->conn->qps
+		);
+	}
+
+	public function testJoin() {
+		$this->assertEquals(
+			new QueryPiece("INNER JOIN `mydb`.`other` ON `mydb`.`person`.`left` = `mydb`.`other`.`right`"),
+			Person::qp_inner_join("left", new Name("mydb", "other", "right"))
 		);
 	}
 
@@ -122,22 +121,7 @@ class TableTest extends TestCase {
 
 	public function testDatabaseNotSelected() {
 		$this->expectException(\Exception::class);
-
-		Inherit::connect($this->conn());
 		Inherit::select();
-	}
-
-	public function testNoConnectionProvided() {
-		$this->expectException(\Exception::class);
-
-		Inherit::disconnect();
-		Inherit::db_name();
-	}
-
-	public function testStringColumns() {
-		StringColumns::connect($this->conn());
-		list($qp) = StringColumns::select();
-		$this->assertEquals("SELECT a,b,c FROM `mydb`.`strings`", $qp->template);
 	}
 }
 
